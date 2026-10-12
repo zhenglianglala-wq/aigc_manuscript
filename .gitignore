@@ -1,0 +1,28 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data, backups and logs
+data/
+backups/
+logs/
+*.log
+evals/results/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Frontend and browser artifacts
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+
+# System files
+.DS_Store
