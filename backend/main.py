@@ -336,16 +336,25 @@ def create_app(data_dir=None):
             store.project(project_id);store.get('revision',f'{project_id}:{body.revision}');check_url(body.url);r={'id':uid(),'project_id':project_id,**body.model_dump(),'created_at':now(),'evaluation_type':'user-reported'};store.put('feedback',r);return r
     @app.post('/api/backups',status_code=201)
     def backup_create():
-        id=uid();folder=store.path/'backups';folder.mkdir(exist_ok=True);path=folder/(id+'.sqlite3')
+        id=uid();folder=store.path/'backups';folder.mkdir(exist_ok=True)
         with store.lock:
-            target=sqlite3.connect(path)
-            try:store.conn.backup(target)
-            finally:target.close()
-        with store.tx():meta={'id':id,'filename':path.name,'created_at':now()};store.put('backup',meta)
+            has_photos=bool(store.list('photo_asset'))
+            path=folder/(id+('.zip' if has_photos else '.sqlite3'))
+            if has_photos:
+                from scripts.photo_backup import create_bundle
+                try:create_bundle(store,path)
+                except (ValueError,OSError):raise DomainError('BACKUP_FAILED','完整照片备份校验失败，请检查图片文件是否齐全',409)
+            else:
+                target=sqlite3.connect(path)
+                try:store.conn.backup(target)
+                finally:target.close()
+        with store.tx():meta={'id':id,'filename':path.name,'created_at':now(),'format':'zip' if has_photos else 'sqlite3','includes_photo_assets':has_photos};store.put('backup',meta)
         return meta
     @app.get('/api/backups/{backup_id}/download')
     def backup_download(backup_id:str):
-        b=store.get('backup',backup_id);return FileResponse(store.path/'backups'/b['filename'],media_type='application/vnd.sqlite3',filename=b['filename'])
+        b=store.get('backup',backup_id);return FileResponse(store.path/'backups'/b['filename'],media_type='application/zip' if b['filename'].endswith('.zip') else 'application/vnd.sqlite3',filename=b['filename'])
+    from backend.photo_api import register_photo_routes
+    register_photo_routes(app,store,tasks,settings)
     return app
 
 app=create_app()
