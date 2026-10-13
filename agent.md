@@ -15,6 +15,10 @@
 - tests/：unit、api、e2e；evals/：50 个固定创作案例与质量量表。
 - data/：本地运行数据，Git 忽略。
 
+照片：`backend/photo_api.py`、`photo_schemas.py` 管理独立项目；`workflows/photo.py` 分别编排 Prompt 与图生任务；`tools/photo_model.py` 仅明确的 Base64 图片协议，独立 Key/开关/用途批准。`frontend/src/features/photos/` 为独立工作区。`scripts/photo_backup.py` 处理包含照片文件的完整 ZIP 备份。
+
+照片 Prompt 操作不能隐式调用图片模型；直接输入 Prompt 生图不应调用文字模型。图片区分项目来源与直接输入，保持实际文本和版本快照。Pillow 仅验证图片字节可解码；不将离线占位图标为真实照片。新增照片验收见 docs/photo-validation.md。
+
 前后端职责由各子 agent 独立承担，测试成员独立验收。共享契约和其他成员目录的修改由主 agent 协调。普通聊天只产生消息或候选；正式剧本变更需要用户应用且基础版本一致。
 
 ## 测试要求
