@@ -10,6 +10,7 @@
 | HTTPX | 有界超时的兼容模型 HTTP 调用、离线模拟 | BSD-3-Clause |
 | python-dotenv | 仅后端加载本机配置 | BSD-3-Clause |
 | pytest | 独立程序测试 | MIT |
+| Pillow 11.2.1 | PNG/JPEG/WebP 像素解码验证，拒绝头部有效但无法预览的图片 | MIT-CMU |
 | React / React DOM | 前端组件与状态 | MIT |
 | Vite / React 插件 | 开发代理及构建 | MIT |
 | TypeScript | 前端契约类型检查 | Apache-2.0 |
