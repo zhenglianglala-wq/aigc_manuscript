@@ -19,10 +19,13 @@ __pycache__/
 
 # Frontend and browser artifacts
 node_modules/
+.pnpm-store/
 dist/
+*.tsbuildinfo
 coverage/
 playwright-report/
 test-results/
+tests/artifacts/
 
 # System files
 .DS_Store
