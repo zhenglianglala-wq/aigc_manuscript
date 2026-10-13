@@ -1,17 +1,17 @@
 # 项目代码与协作边界
 
-当前为规划阶段。完整方案见 docs/project-plan.md；团队分工见 docs/agent-team.md。
+已实现本地工作台。完整方案见 docs/project-plan.md；接口见 docs/api-contract.md；团队见 docs/agent-team.md。验收状态以 docs/validation.md 为准，离线测试不代表真实模型效果。
 
-## 目录职责（待实现）
+## 目录职责
 
-- frontend/：React TypeScript 页面、用户档案、项目、对话、记忆及分镜编辑。
-- backend/：FastAPI、Schema、配置、数据库事务、API 和迁移。
+- frontend/src/app/App.tsx：工作台协调；features/：用户、项目、对话、记忆、分镜与候选；styles/：主题材质；api/：HTTP 与下载。
+- backend/main.py：FastAPI 入口、API 和配置；schemas.py：边界校验；store.py：SQLite 事务、版本与数据库版本检查。
 - agents/：角色判断与结构化输出，不直接访问数据库。
-- tools/：模型接口、导出和用量记录，不做工作流决策。
+- tools/model.py：兼容文本接口和受批准的调用；compiler.py：逐秒/分镜 Prompt 和机械检查。导出目前位于 backend/main.py，不做视频生成。
 - skills/：任务方法；prompts/：版本化提示词。
-- workflows/：编排、幂等、版本检查、取消和有限重试。
-- context/：上下文与可追溯摘要，不自动保存长期记忆。
-- memory/：范围、确认、来源和失效，不直接修改剧本。
+- workflows/runner.py：编排、输出校验、候选与有限修复；API/store 负责幂等和版本事务。
+- context/assembly.py：有长度预算的上下文与来源摘录，不自动保存长期记忆。
+- memory/lifecycle.py：失效沿来源消息→上下文→任务→衍生回复传播，不直接修改剧本。
 - tests/：unit、api、e2e；evals/：50 个固定创作案例与质量量表。
 - data/：本地运行数据，Git 忽略。
 
@@ -21,8 +21,10 @@
 
 必须验证时间覆盖 [0,N)、版本冲突、刷新持久化、导出解析、取消和重复请求、项目记忆隔离、确认前不注入、删除传播以及费用批准拦截。
 
-真实 GUI 验证完整创作与对话/记忆流程、连续切换至少 20 次、错误恢复、键盘和 200% 缩放。离线 fixture、真实模型和外部视频效果分别报告。尚无应用时不声称测试通过；实施后在 README 固定准确测试命令。
+真实 GUI 验证完整创作与对话/记忆流程、连续切换至少 20 次、错误恢复、键盘和 200% 缩放。离线 fixture、真实模型和外部视频效果分别报告。
+
+权威命令：`.venv/bin/python -m pytest tests/unit tests/api -q`；前端目录 `pnpm build`；fixture服务下 `.venv/bin/python evals/runner.py --base-url http://127.0.0.1:8000`。浏览器命令和环境见 docs/validation.md。
 
 ## 依赖策略
 
-使用项目虚拟环境与锁文件。新增依赖说明用途并核验许可证，选择兼容稳定版本。没有明确需求时不引入向量库、消息队列或重型 Agent 框架。不要读取其他项目密钥；.env.example 只允许空值或假值，.env 不入 Git。付费调用需用户批准，配置 Key 本身不构成授权。
+使用项目虚拟环境、requirements.lock、frontend/pnpm-lock.yaml。Python 3.11+，Node 22.13+，pnpm 11.25.0。新增依赖说明用途并核验许可证，选择兼容稳定版本。没有明确需求时不引入向量库、消息队列或重型 Agent 框架。不要读取其他项目密钥；.env.example 只允许空值或假值，.env 不入 Git。付费调用需用户批准，配置 Key 本身不构成授权。
