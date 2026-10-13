@@ -1,0 +1,9 @@
+import {useState} from 'react';
+import type {Document,Proposal} from '../../domain/types';
+import {kindLabel,timecode} from '../../domain/types';
+import {Pretty,Tag} from '../../components/UI';
+function preview(d:Document){return d.beats.length?d.beats.map(b=>`${timecode(b.start_second)}  ${b.visual}\n动作：${b.action}\n镜头：${b.camera}\n对白：${b.dialogue}\n声音：${b.sound}`).join('\n\n'):d.story?.synopsis??'尚无故事';}
+export function ProposalCard({proposal,current,revision,busy,onApply,onDismiss}:{proposal:Proposal;current:Document;revision:number;busy:boolean;onApply:()=>void;onDismiss:()=>void}){
+ const [show,setShow]=useState(false);const stale=proposal.base_revision!==revision;
+ return <article className="proposal-card" data-testid="proposal"><div className="section-heading"><strong>{kindLabel[proposal.kind]??proposal.kind}候选</strong><Tag tone="warning">{stale?'基础版本已变化':'待应用'}</Tag></div><p className="muted">基于版本 {proposal.base_revision}，正式内容尚未改变。</p><div className="proposal-preview">{proposal.document.story?.title&&<h3>{proposal.document.story.title}</h3>}<p>{proposal.kind==='expand'?proposal.document.story?.synopsis:`${proposal.document.shots.length} 个分镜，${proposal.document.beats.length} 秒剧本`}</p></div><button aria-expanded={show} onClick={()=>setShow(v=>!v)}>{show?'收起对比':'查看修改对比'}</button>{show&&<div className="comparison"><section><h4>当前内容</h4><pre>{preview(current)}</pre></section><section><h4>候选内容</h4><pre>{preview(proposal.document)}</pre></section><details><summary>结构差异与检查</summary><Pretty value={{diff:proposal.diff,issues:proposal.issues}}/></details></div>}<div className="actions"><button className="primary" disabled={busy||stale} onClick={onApply}>应用候选</button><button disabled={busy} onClick={onDismiss}>放弃候选</button></div>{stale&&<p className="notice">请基于当前版本重新生成，保留的候选不会覆盖新编辑。</p>}</article>;
+}
