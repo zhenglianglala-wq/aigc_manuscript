@@ -4,6 +4,19 @@
 
 默认 **离线示例**：确定性样例验证软件流程，不代表真实 AI 创作质量。真实文本模型由你配置和批准；本项目不调用视频生成服务。
 
+## 照片创作：两个独立功能
+
+顶层切换到“照片创作”。照片项目与视频项目分别保存：
+
+- **Prompt 编写**：简介扩写为主体、场景、构图、光线、镜头、风格等可编辑字段，候选应用后可确认、复制或导出，不自动生成图片。
+- **直接生成照片**：可使用已确认的项目 Prompt，也可直接粘贴已有 Prompt，确认后生成，无需先调用 Prompt 编写。图片保存实际文字、来源、模型、尺寸和版本，支持预览、下载与历史。
+
+两类服务及批准分别管理。默认文字为示例，默认图片为醒目标注的离线占位图（非 AI 照片）。真实生图须配置独立的 `IMAGE_API_KEY`、`IMAGE_BASE_URL`、`IMAGE_MODEL`、`IMAGE_MODE=openai-compatible`、`PAID_IMAGE_CALLS_ENABLED=true`，再在照片设置中批准图片用途。文本 Key 和视频批准不能代替图片授权。
+
+首版图片接口支持 `/images/generations` Base64 输出 PNG/JPEG/WebP，`response_format=auto` 省略旧参数。URL-only 供应商暂不支持。每次一张，没有自动重试；取消不保证供应商免计费。设置更改需要重新批准。
+
+详见[照片模块说明](docs/photo-module.md)、[照片接口](docs/photo-api-contract.md)与[照片验收](docs/photo-validation.md)。
+
 ## 环境与启动
 
 Python 3.11+、Node.js 22.13+、pnpm 11.25.0。已在 Python 3.12、Node 24.19.0 验证。Python 使用项目虚拟环境；版本固定在 `requirements.lock` 和 `frontend/pnpm-lock.yaml`。
@@ -98,6 +111,17 @@ Prompt 调优见 [prompt-quality.md](docs/prompt-quality.md)。从两个已导�
 ```
 
 恢复先验证 Schema、完整性和引用再替换。原数据保存在 `studio.pre-restore.sqlite3`；该文件已存在时需先移开。备份会恢复当时的记忆，确认范围后再操作。WAL 文件存在时拒绝替换，先正常停服。
+
+存在照片资产时，设置页的完整备份自动生成 ZIP，包含数据库和引用的照片文件。有照片时不要只保存数据库；使用完整备份命令：
+
+```sh
+.venv/bin/python scripts/photo_backup.py backup data/backups/full.zip
+.venv/bin/python scripts/photo_backup.py validate data/backups/full.zip
+# 先正常停止服务，再恢复
+.venv/bin/python scripts/photo_backup.py restore data/backups/full.zip --confirm
+```
+
+ZIP 校验照片引用、SHA256 与安全路径，恢复前验证到临时目录；原数据库和照片保存在 `data/pre-restore/`。当前完整备份上限 512 MiB；不包含密钥或以前的备份文件。备份含本地对话、记忆和图片，请按个人数据管理。
 
 ## 文档与代码
 
