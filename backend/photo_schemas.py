@@ -65,7 +65,7 @@ class PhotoImageSettings(Strict):
     base_url: str | None = Field(default=None,max_length=2000)
     model: str | None = Field(default=None,max_length=200)
     size: Literal['1024x1024','1536x1024','1024x1536'] | None = None
-    response_format: Literal['auto','b64_json'] | None = None
+    response_format: Literal['auto','b64_json','aliyun_url'] | None = None
     estimated_price_per_image: float | None = Field(default=None,ge=0)
     price_date: str | None = Field(default=None,max_length=40)
 class PhotoApprovalNew(Strict):
@@ -75,3 +75,6 @@ class PhotoApprovalNew(Strict):
     accept_unknown_cost: bool = False
     budget: float | None = Field(default=None,gt=0)
     expires_in_minutes: int = Field(default=60,ge=1,le=1440)
+
+class PhotoRecoveryRun(Strict):
+    idempotency_key: str = Field(min_length=1,max_length=128)
