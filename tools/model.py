@@ -5,7 +5,7 @@ import httpx
 from datetime import datetime,timezone
 from backend.store import DomainError,now
 
-async def complete(store,run,settings,approval_id,payload):
+async def complete(store,run,settings,approval_id,payload,approval_kind="approval"):
     key=os.environ.get('LLM_API_KEY','')
     if not key or os.environ.get('PAID_CALLS_ENABLED','').lower() not in ('true','1','yes'):
         raise DomainError('CALLS_DISABLED','需配置后端 Key 并开启调用，再创建明确批准记录',403)
@@ -18,8 +18,8 @@ async def complete(store,run,settings,approval_id,payload):
         with store.tx():
             r=store.get('run',run['id'])
             if r['status']=='cancelled':raise DomainError('CANCELLED','任务已取消')
-            ap=store.get('approval',approval_id or '',False)
-            if not ap or ap['project_id']!=run['project_id'] or ap['status']!='active' or datetime.fromisoformat(ap['expires_at'])<=datetime.now(timezone.utc):raise DomainError('APPROVAL_REQUIRED','缺少有效的项目调用批准',403)
+            ap=store.get(approval_kind,approval_id or '',False)
+            if not ap or (approval_kind=='approval' and ap.get('project_id')!=run.get('project_id')) or (approval_kind=='photo_approval' and (ap.get('photo_project_id')!=run.get('photo_project_id') or ap.get('purpose')!='prompt')) or ap['status']!='active' or datetime.fromisoformat(ap['expires_at'])<=datetime.now(timezone.utc):raise DomainError('APPROVAL_REQUIRED','缺少有效的项目调用批准',403)
             if ap.get('model_binding') and ap['model_binding']!={k:settings[k] for k in ('base_url','model','input_price_per_million','output_price_per_million','max_output_tokens')}:raise DomainError('APPROVAL_CONFIG_CHANGED','模型或价格改变，请重新批准',403)
             if ap['calls_used']>=ap['max_calls']:raise DomainError('CALL_LIMIT','批准的调用次数已用完',403)
             pi=settings.get('input_price_per_million');po=settings.get('output_price_per_million')
@@ -28,7 +28,7 @@ async def complete(store,run,settings,approval_id,payload):
             # UTF-8 byte bound is deliberately conservative for local preflight.
             reserve=(len(json.dumps(messages,ensure_ascii=False).encode())*pi+settings['max_output_tokens']*po)/1e6 if known else None
             if known and ap['budget'] is not None and ap['spent']+ap.get('reserved',0)+reserve>ap['budget']:raise DomainError('BUDGET_EXCEEDED','本地预算预检查未通过',403)
-            ap['calls_used']+=1;ap['reserved']=ap.get('reserved',0)+(reserve or 0);store.put('approval',ap)
+            ap['calls_used']+=1;ap['reserved']=ap.get('reserved',0)+(reserve or 0);store.put(approval_kind,ap)
             r['prompt_version']=rules['version'];r['steps'].append({'step':'model_request','attempt':attempt+1,'status':'running','at':now(),'model':settings['model']});store.put('run',r)
         response=None;usage={};success=False;retry=False;error=None
         try:
@@ -45,10 +45,10 @@ async def complete(store,run,settings,approval_id,payload):
         except (ValueError,KeyError,TypeError):error=DomainError('MODEL_OUTPUT_INVALID','模型未返回有效 JSON；未保存正式产物',502)
         finally:
             with store.tx():
-                ap=store.get('approval',approval_id);ap['reserved']=max(0,ap.get('reserved',0)-(reserve or 0))
+                ap=store.get(approval_kind,approval_id);ap['reserved']=max(0,ap.get('reserved',0)-(reserve or 0))
                 inp=usage.get('prompt_tokens');out=usage.get('completion_tokens');cost=(inp*pi+out*po)/1e6 if known and isinstance(inp,int) and isinstance(out,int) else None
                 # If upstream may have billed without reporting usage, hold conservative reserve.
-                ap['spent']+=cost if cost is not None else (reserve or 0);store.put('approval',ap)
+                ap['spent']+=cost if cost is not None else (reserve or 0);store.put(approval_kind,ap)
                 r=store.get('run',run['id']);r['steps'][-1].update(status='succeeded' if success else 'failed',elapsed_seconds=round(time.monotonic()-t,3),usage={'input_tokens':inp,'output_tokens':out,'estimated_cost':cost,'cost_status':'estimated' if cost is not None else 'unknown'})
                 u=r['usage'];attempts=[s.get('usage',{}) for s in r['steps'] if s['step']=='model_request']
                 partial={}
