@@ -4,7 +4,7 @@ from backend.store import now,uid,DomainError
 from backend.photo_schemas import PhotoPrompt
 from agents.photo_fixture import make_prompt,placeholder
 from tools.model import complete
-from tools.photo_model import generate_image
+from tools.photo_model import generate_image,recover_image_receipt
 
 PROMPT_FIELDS=('subject','environment','composition','lighting','camera','style','color','mood','details')
 def compile_photo_prompt(prompt,brief,mode=None):
@@ -51,7 +51,8 @@ async def execute_photo(store,run_id,config):
                 proposal_id=uid();store.put('photo_proposal',{'id':proposal_id,'photo_project_id':run['photo_project_id'],'base_revision':run['base_revision'],'status':'pending','prompt':prompt,'diff':{'prompt_changed':prompt!=request.get('prompt_snapshot')},'issues':checks['issues'],'created_at':now(),'run_id':run_id})
                 current.update(status='succeeded',proposal_id=proposal_id,result=checks,elapsed_seconds=round(time.monotonic()-began,3),updated_at=now());current['steps'].append({'step':'save_prompt_candidate','status':'succeeded','at':now()});store.put('run',current)
         else:
-            if config['mode']=='fixture':raw,mime,ext,width,height=placeholder(request['prompt_snapshot'],config['size'])
+            if run['kind']=='photo_image_recovery':raw,mime,ext,width,height=await recover_image_receipt(store,run)
+            elif config['mode']=='fixture':raw,mime,ext,width,height=placeholder(request['prompt_snapshot'],config['size'])
             else:raw,mime,ext,width,height=await generate_image(store,run,config)
             with store.tx():
                 current=store.get('run',run_id)
@@ -59,8 +60,11 @@ async def execute_photo(store,run_id,config):
                 store.get('photo_project',run['photo_project_id'])
                 id=uid();folder=store.path/'photo-assets';folder.mkdir(exist_ok=True);filename=id+'.'+ext;path=folder/filename
                 path.write_bytes(raw)
-                asset={'id':id,'photo_project_id':run['photo_project_id'],'prompt_revision':None if request.get('prompt_source')=='direct' else run['base_revision'],'prompt_source':request.get('prompt_source','project'),'source_project_revision':run['base_revision'],'prompt_text':request['prompt_snapshot']['compiled_prompt'],'mode':config['mode'],'label':'离线占位图，非 AI 照片' if config['mode']=='fixture' else '外部图片模型生成','size':config['size'],'model':config['model'],'settings_snapshot':{k:v for k,v in config.items() if k not in ('key_present','paid_calls_enabled')},'mime_type':mime,'width':width,'height':height,'created_at':now(),'filename':filename,'preview_url':f'/api/photo-assets/{id}/preview','download_url':f'/api/photo-assets/{id}/download'}
-                store.put('photo_asset',asset);current.update(status='succeeded',proposal_id=None,result={'asset_id':id},elapsed_seconds=round(time.monotonic()-began,3),updated_at=now());current['steps'].append({'step':'save_photo_asset','status':'succeeded','at':now()});store.put('run',current)
+                asset={'id':id,'run_id':run.get('recovery_of',run['id']),'recovery_run_id':run['id'] if run.get('recovery_of') else None,'photo_project_id':run['photo_project_id'],'prompt_revision':None if request.get('prompt_source')=='direct' else run['base_revision'],'prompt_source':request.get('prompt_source','project'),'source_project_revision':run['base_revision'],'prompt_text':request['prompt_snapshot']['compiled_prompt'],'mode':config['mode'],'label':'离线占位图，非 AI 照片' if config['mode']=='fixture' else '外部图片模型生成','size':config['size'],'model':config['model'],'settings_snapshot':{k:v for k,v in config.items() if k not in ('key_present','paid_calls_enabled')},'mime_type':mime,'width':width,'height':height,'created_at':now(),'filename':filename,'preview_url':f'/api/photo-assets/{id}/preview','download_url':f'/api/photo-assets/{id}/download'}
+                store.put('photo_asset',asset)
+                if run.get('recovery_of'):
+                    original=store.get('run',run['recovery_of']);original['recovered_asset_id']=id;original['recovery_run_id']=run['id'];store.put('run',original)
+                current.update(status='succeeded',proposal_id=None,result={'asset_id':id},elapsed_seconds=round(time.monotonic()-began,3),updated_at=now());current['steps'].append({'step':'save_photo_asset','status':'succeeded','at':now()});store.put('run',current)
     except asyncio.CancelledError:
         if path:path.unlink(missing_ok=True)
         raise
