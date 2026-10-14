@@ -25,6 +25,9 @@ def validate(path: Path) -> None:
                 raise ValueError(f"Mismatched entity id: {kind}")
             if project_id and ("project", project_id) not in entities:
                 raise ValueError(f"Dangling project reference: {kind}")
+            photo_id = record.get("photo_project_id")
+            if photo_id and ("photo_project", photo_id) not in entities:
+                raise ValueError(f"Dangling photo project reference: {kind}")
             if kind == "message" and ("conversation", record["conversation_id"]) not in entities:
                 raise ValueError("Dangling conversation reference")
         if db.execute("PRAGMA foreign_key_check").fetchall():
