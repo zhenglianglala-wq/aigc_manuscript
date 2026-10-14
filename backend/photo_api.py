@@ -6,7 +6,7 @@ from fastapi.responses import Response,FileResponse
 from backend.store import DomainError,uid,now,dumps
 from backend.schemas import BaseRevision
 from backend.photo_schemas import *
-from tools.photo_model import require_approval,model_binding,validate_base_url
+from tools.photo_model import require_approval,model_binding,validate_base_url,validate_aliyun_endpoint,load_image_receipt,receipt_path
 from workflows.photo import execute_photo,compile_photo_prompt,check_photo_prompt
 
 def register_photo_routes(app,store,tasks,text_settings):
@@ -15,7 +15,7 @@ def register_photo_routes(app,store,tasks,text_settings):
         if p['current_revision']!=base:raise DomainError('REVISION_CONFLICT','照片版本已改变，请刷新比较',409)
     def image_settings():
         cfg=store.get('settings','photo_image',False) or {'id':'photo_image','mode':os.environ.get('IMAGE_MODE') or 'fixture','base_url':os.environ.get('IMAGE_BASE_URL') or '','model':os.environ.get('IMAGE_MODEL') or '','size':'1024x1024','response_format':'auto','estimated_price_per_image':None,'price_date':None}
-        return {**cfg,'key_present':bool(os.environ.get('IMAGE_API_KEY')),'paid_calls_enabled':os.environ.get('PAID_IMAGE_CALLS_ENABLED','').lower() in ('true','1','yes'),'base64_only':True}
+        return {**cfg,'key_present':bool(os.environ.get('IMAGE_API_KEY')),'paid_calls_enabled':os.environ.get('PAID_IMAGE_CALLS_ENABLED','').lower() in ('true','1','yes'),'base64_only':cfg['response_format']!='aliyun_url'}
     def revised(p,prompt,source,brief=None,title=None):
         parent=p['current_revision'];p.update(current_revision=parent+1,prompt=prompt,updated_at=now())
         if brief is not None:p['brief']=brief
@@ -27,7 +27,9 @@ def register_photo_routes(app,store,tasks,text_settings):
         if config['mode']=='fixture':return
         if not config['key_present'] or not config['paid_calls_enabled']:raise DomainError('IMAGE_CALLS_DISABLED' if purpose=='image' else 'CALLS_DISABLED','需配置此用途的后端密钥和开关，并明确批准调用',403)
         if not config['base_url'] or not config['model']:raise DomainError('MODEL_NOT_CONFIGURED','请填写服务地址与模型',422)
-        validate_base_url(config['base_url']);require_approval(store,run,config,purpose)
+        validate_base_url(config['base_url'])
+        if purpose=='image' and config['response_format']=='aliyun_url':validate_aliyun_endpoint(config['base_url'])
+        require_approval(store,run,config,purpose)
     def launch(p,body,purpose):
         request=body.model_dump();kind='photo_'+purpose;existing=next((r for r in store.list('run') if r.get('photo_project_id')==p['id'] and r['kind']==kind and r['idempotency_key']==body.idempotency_key),None)
         config=image_settings() if purpose=='image' else text_settings()
@@ -72,6 +74,7 @@ def register_photo_routes(app,store,tasks,text_settings):
             photo(project_id);ids={r['id'] for r in store.list('run') if r.get('photo_project_id')==project_id}
             for task in list(tasks):
                 if task.get_name() in ids:task.cancel()
+            paths.extend(receipt_path(store,rid) for rid in ids)
             for kind in ('photo_revision','photo_proposal','photo_asset','photo_approval','run','context'):
                 for item in store.list(kind):
                     if item.get('photo_project_id')==project_id:
@@ -90,6 +93,23 @@ def register_photo_routes(app,store,tasks,text_settings):
     async def image_run(project_id:str,body:PhotoImageRun):
         with store.tx():r,cfg=launch(photo(project_id),body,'image')
         dispatch(r,cfg);return r
+    @app.post('/api/photo-projects/{project_id}/runs/{original_run_id}/recover-image',status_code=202)
+    async def recover_image(project_id:str,original_run_id:str,body:PhotoRecoveryRun):
+        with store.tx():
+            photo(project_id);original=store.get('run',original_run_id)
+            if original.get('photo_project_id')!=project_id or original['kind']!='photo_image':raise DomainError('INVALID_REFERENCE','原任务不属于此照片项目或不是生成图片任务',422)
+            if original['status']=='cancelled':raise DomainError('RECOVERY_CANCELLED','已取消的生成任务不能恢复下载',409)
+            recoveries=[r for r in store.list('run') if r.get('recovery_of')==original_run_id]
+            existing=next((r for r in recoveries if r['idempotency_key']==body.idempotency_key or r['status'] in ('queued','running','validating','succeeded')),None)
+            if existing:return existing
+            if original['status'] not in ('failed','interrupted'):raise DomainError('RECOVERY_NOT_AVAILABLE','仅失败或中断的Aliyun下载任务可恢复',409)
+            config=deepcopy(original['request']['settings_snapshot'])
+            if original['mode']!='openai-compatible' or config.get('response_format')!='aliyun_url':raise DomainError('RECOVERY_NOT_AVAILABLE','仅Aliyun URL结果支持无生成恢复',409)
+            load_image_receipt(store,original)
+            request=deepcopy(original['request']);request['approval_id']=None
+            run={'id':uid(),'project_id':None,'photo_project_id':project_id,'kind':'photo_image_recovery','status':'queued','base_revision':original['base_revision'],'mode':original['mode'],'steps':[],'usage':{'input_tokens':0,'output_tokens':0,'cost':0,'cost_status':'recovery_no_generation'},'result':None,'error':None,'proposal_id':None,'idempotency_key':body.idempotency_key,'created_at':now(),'updated_at':now(),'request':request,'recovery_of':original_run_id,'context_id':original['context_id']}
+            store.put('run',run)
+        dispatch(run,config);return run
     @app.get('/api/photo-projects/{project_id}/proposals')
     def proposals(project_id:str):photo(project_id);return [c for c in store.list('photo_proposal') if c['photo_project_id']==project_id]
     @app.post('/api/photo-proposals/{proposal_id}/apply')
@@ -163,7 +183,9 @@ def register_photo_routes(app,store,tasks,text_settings):
             cfg=image_settings();cfg={k:v for k,v in cfg.items() if k not in ('key_present','paid_calls_enabled','base64_only')};updates=body.model_dump(exclude_unset=True)
             if any(updates.get(k,False) is None for k in ('mode','base_url','model','size','response_format')):raise DomainError('INVALID_INPUT','图片核心配置不能为null',422)
             cfg.update(updates)
-            if cfg['base_url']:validate_base_url(cfg['base_url'])
+            if cfg['base_url']:
+                validate_base_url(cfg['base_url'])
+                if cfg['response_format']=='aliyun_url':validate_aliyun_endpoint(cfg['base_url'])
             store.put('settings',cfg);return image_settings()
     @app.get('/api/photo-settings/prompt')
     def prompt_config():return {**text_settings(),'approval_scope':'photo_prompt'}
