@@ -13,7 +13,9 @@
 
 两类服务及批准分别管理。默认文字为示例，默认图片为醒目标注的离线占位图（非 AI 照片）。真实生图须配置独立的 `IMAGE_API_KEY`、`IMAGE_BASE_URL`、`IMAGE_MODEL`、`IMAGE_MODE=openai-compatible`、`PAID_IMAGE_CALLS_ENABLED=true`，再在照片设置中批准图片用途。文本 Key 和视频批准不能代替图片授权。
 
-首版图片接口支持 `/images/generations` Base64 输出 PNG/JPEG/WebP，`response_format=auto` 省略旧参数。URL-only 供应商暂不支持。每次一张，没有自动重试；取消不保证供应商免计费。设置更改需要重新批准。
+图片接口支持 `/images/generations` Base64 输出 PNG/JPEG/WebP，`response_format=auto` 省略旧参数。阿里云百炼选择 `aliyun_url`，由后端下载经过验证的官方 OSS 结果；其他 URL-only 供应商仍不支持。每次一张，没有自动重试；取消不保证供应商免计费。设置更改需要重新批准。
+
+阿里云文字模型与图片模型分别配置：例如 `LLM_MODEL=qwen3.8-flash`、`IMAGE_MODEL=qwen-image-2.1-turbo`。北京业务空间的兼容地址为 `https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`，请使用自己控制台中的空间 ID。若服务允许，可在本地两个 Key 变量中填入同一密钥；模板和 Git 仓库始终不保存真实密钥。
 
 详见[照片模块说明](docs/photo-module.md)、[照片接口](docs/photo-api-contract.md)与[照片验收](docs/photo-validation.md)。
 
