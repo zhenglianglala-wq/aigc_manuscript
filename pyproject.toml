@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "aigc-script-studio"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["fastapi==0.115.12", "pydantic==2.11.3", "uvicorn==0.34.2", "httpx==0.28.1", "python-dotenv==1.1.0"]
+dependencies = ["fastapi==0.115.12", "pydantic==2.11.3", "uvicorn==0.34.2", "httpx==0.28.1", "python-dotenv==1.1.0", "Pillow==11.2.1"]
 
 [tool.setuptools.packages.find]
 include = ["backend*", "agents*", "tools*", "workflows*", "context*", "memory*"]
