@@ -21,6 +21,10 @@
 
 详见[照片模块说明](docs/photo-module.md)、[照片接口](docs/photo-api-contract.md)与[照片验收](docs/photo-validation.md)。
 
+## Prompt差异化
+
+照片支持三种优化方向、创作补充标注、本地Prompt诊断与版本对照；照片历史可保存人工评价。视频检查增加动作密度/镜头冲突提示，动作优先分镜保留完整动作序列。诊断不收费、不自动改稿，示例模板不代表真实模型效果。详细产品策略、可重复A/B实验与限制见[Prompt质量方案](docs/prompt-quality.md)。
+
 ## 环境与启动
 
 Python 3.11+、Node.js 22.13+、pnpm 11.25.0。已在 Python 3.12、Node 24.19.0 验证。Python 使用项目虚拟环境；版本固定在 `requirements.lock` 和 `frontend/pnpm-lock.yaml`。
