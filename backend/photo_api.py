@@ -7,6 +7,7 @@ from backend.store import DomainError,uid,now,dumps
 from backend.schemas import BaseRevision
 from backend.photo_schemas import *
 from tools.photo_model import require_approval,model_binding,validate_base_url,validate_aliyun_endpoint,load_image_receipt,receipt_path
+from tools.prompt_quality import photo_quality
 from workflows.photo import execute_photo,compile_photo_prompt,check_photo_prompt
 
 def register_photo_routes(app,store,tasks,text_settings):
@@ -35,7 +36,9 @@ def register_photo_routes(app,store,tasks,text_settings):
         config=image_settings() if purpose=='image' else text_settings()
         if existing:
             snapshot={k:v for k,v in config.items() if k not in ('key_present','paid_calls_enabled')}
-            if existing['request']['original_request']!=request or existing['request']['settings_snapshot']!=snapshot:raise DomainError('IDEMPOTENCY_CONFLICT','相同幂等键对应不同照片请求',409)
+            original_request=deepcopy(existing['request']['original_request'])
+            if purpose=='prompt':original_request.setdefault('creative_direction','faithful')
+            if original_request!=request or existing['request']['settings_snapshot']!=snapshot:raise DomainError('IDEMPOTENCY_CONFLICT','相同幂等键对应不同照片请求',409)
             return existing,None
         version_match(p,body.base_revision)
         prompt_snapshot=deepcopy(p['prompt']);prompt_source='project'
@@ -75,7 +78,7 @@ def register_photo_routes(app,store,tasks,text_settings):
             for task in list(tasks):
                 if task.get_name() in ids:task.cancel()
             paths.extend(receipt_path(store,rid) for rid in ids)
-            for kind in ('photo_revision','photo_proposal','photo_asset','photo_approval','run','context'):
+            for kind in ('photo_revision','photo_proposal','photo_asset','photo_feedback','photo_approval','run','context'):
                 for item in store.list(kind):
                     if item.get('photo_project_id')==project_id:
                         if kind=='photo_asset':paths.append(asset_path(item))
@@ -83,6 +86,21 @@ def register_photo_routes(app,store,tasks,text_settings):
             store.delete('photo_project',project_id)
         for path in paths:path.unlink(missing_ok=True)
         return {'deleted':True,'existing_backups_retained':True}
+    @app.post('/api/photo-projects/{project_id}/quality')
+    def quality(project_id:str,body:PhotoQualityRequest):
+        with store.lock:
+            p=photo(project_id);version_match(p,body.base_revision)
+            report=photo_quality(p['brief'],p['prompt'],body.text)
+            return {'project_revision':p['current_revision'],'current':report,'baseline':photo_quality(p['brief'],text=body.baseline) if body.baseline is not None else None,'comparison_notice':'对照仅比较写作线索，不推断哪张图片更好；需要同模型、同参数与人工盲评。'}
+    @app.post('/api/photo-assets/{asset_id}/feedback',status_code=201)
+    def photo_feedback(asset_id:str,body:PhotoFeedbackNew):
+        with store.tx():
+            asset=scoped('photo_asset',asset_id)
+            record={'id':uid(),'photo_project_id':asset['photo_project_id'],'asset_id':asset_id,'asset_mode':asset['mode'],'prompt_text':asset['prompt_text'],'source_revision':asset.get('source_project_revision',asset.get('prompt_revision')),'model':asset['model'],'settings_snapshot':asset['settings_snapshot'],'evaluation_type':'user-reported',**body.model_dump(),'created_at':now()}
+            store.put('photo_feedback',record);return record
+    @app.get('/api/photo-projects/{project_id}/feedback')
+    def photo_feedback_list(project_id:str):
+        photo(project_id);return [r for r in store.list('photo_feedback') if r['photo_project_id']==project_id]
     @app.get('/api/photo-projects/{project_id}/runs')
     def runs(project_id:str):photo(project_id);return [r for r in store.list('run') if r.get('photo_project_id')==project_id]
     @app.post('/api/photo-projects/{project_id}/prompt-runs',status_code=202)
