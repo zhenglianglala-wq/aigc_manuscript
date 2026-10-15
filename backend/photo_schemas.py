@@ -20,6 +20,7 @@ class PhotoProjectPatch(BaseRevision):
     title: str | None = Field(default=None,min_length=1,max_length=200)
     brief: PhotoBrief | None = None
 class PhotoPrompt(Strict):
+    creative_direction: Literal['faithful','cinematic','commercial'] = 'faithful'
     subject: str = Field(min_length=1,max_length=3000)
     environment: str = Field(min_length=1,max_length=3000)
     composition: str = Field(min_length=1,max_length=2000)
@@ -30,6 +31,7 @@ class PhotoPrompt(Strict):
     mood: str = Field(min_length=1,max_length=2000)
     details: str = Field(default='',max_length=4000)
     negative_constraints: list[str] = Field(default_factory=list,max_length=30)
+    assumptions: list[Annotated[str,StringConstraints(min_length=1,max_length=600)]] = Field(default_factory=list,max_length=16)
     compiled_prompt: str = ''
     confirmed: bool = False
     generation_mode: Literal['fixture','openai-compatible'] = 'fixture'
@@ -47,6 +49,7 @@ class PhotoPromptChanges(Strict):
 class PhotoPromptPatch(BaseRevision):
     changes: PhotoPromptChanges
 class PhotoPromptRun(BaseRevision):
+    creative_direction: Literal['faithful','cinematic','commercial'] = 'faithful'
     idempotency_key: str = Field(min_length=1,max_length=128)
     instruction: str = Field(default='',max_length=6000)
     approval_id: str | None = None
@@ -79,3 +82,13 @@ class PhotoApprovalNew(Strict):
 
 class PhotoRecoveryRun(Strict):
     idempotency_key: str = Field(min_length=1,max_length=128)
+
+class PhotoQualityRequest(BaseRevision):
+    text: str | None = Field(default=None,min_length=1,max_length=16000)
+    baseline: str | None = Field(default=None,min_length=1,max_length=16000)
+
+class PhotoFeedbackNew(Strict):
+    adherence: int = Field(strict=True,ge=1,le=5)
+    composition: int = Field(strict=True,ge=1,le=5)
+    lighting: int = Field(strict=True,ge=1,le=5)
+    notes: str = Field(default='',max_length=2000)
