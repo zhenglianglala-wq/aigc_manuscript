@@ -1,8 +1,9 @@
 """Rule profiles compile the SAME beat facts; no vendor execution claims."""
 from copy import deepcopy
+from tools.prompt_quality import video_quality
 PROFILES={
  'generic_text_to_video':{'label':'通用文生视频','version':'1.0','verified':False,'source':'https://deepmind.google/models/veo/prompt-guide/'},
- 'motion_first_image_to_video':{'label':'动作优先图生视频','version':'1.0','verified':False,'source':'https://help.runwayml.com/hc/en-us/articles/39789879462419-Gen-4-Video-Prompting-Guide'}
+ 'motion_first_image_to_video':{'label':'动作优先图生视频','version':'1.1','verified':False,'source':'https://help.runwayml.com/hc/en-us/articles/39789879462419-Gen-4-Video-Prompting-Guide'}
 }
 def compile_document(document,brief):
     doc=deepcopy(document);beats=doc.get('beats',[]);story=doc.get('story') or {}
@@ -24,7 +25,7 @@ def compile_document(document,brief):
         start=group[0]['start_second']
         if not group:continue
         unique=lambda key:list(dict.fromkeys(b[key] for b in group if b[key]))
-        if profile=='motion_first_image_to_video':prompt=group[0]['action']+'；'+group[0]['camera']+'。运动衔接自然。'
+        if profile=='motion_first_image_to_video':prompt='；'.join(f"{b['start_second']-start}–{b['end_second']-start}秒：{b['action']}；{b['camera']}" for b in group)+'。运动衔接自然。'
         else:
             fixed='；'.join(characters[c]['description'] for c in group[0]['character_ids'] if c in characters)
             scene=scenes.get(group[0]['scene_id'],{}).get('description','')
@@ -55,4 +56,4 @@ def check_document(doc,brief,require_timeline=False):
     for x in brief['must_avoid']:
         if x in rendered:add('MUST_AVOID',f'出现禁止内容：{x}')
     # Rules check explicit IDs and constraints; visual continuity still requires human review.
-    return {'valid':not any(x['severity']=='error' for x in issues),'issues':issues,'human_review_required':['叙事节奏','视觉连续性','外部模型实际执行'],'scope':'mechanical'}
+    return {'valid':not any(x['severity']=='error' for x in issues),'issues':issues,'human_review_required':['叙事节奏','视觉连续性','外部模型实际执行'],'scope':'mechanical','writing_review':video_quality(doc)}
