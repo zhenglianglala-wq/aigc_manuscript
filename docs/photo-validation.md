@@ -64,3 +64,23 @@ fixture占位图、Mock图片协议、真实生成照片效果分别记录；真
 用户明确批准追加1张后，主控使用阿里云北京 qwen-image-2.1-turbo、1024x1024、原已确认项目Prompt，单次生成成功并保存有效PNG。没有额外文字请求或自动重新生成。新增调用按配置估算人民币0.10元，实际账单未核验；前一次下载失败的费用仍可能产生。
 
 实际打开照片及工作台截图检查，主体、橘猫、深绿色毛衣和咖啡馆场景可见。真实浏览器预览完成（naturalWidth=1024），下载字节与本地资产一致，零pageerrors；下载检查没有发起新生成调用。图片、回执、用户项目和密钥仅在本地，不提交Git。此结果是一次真实接口验收，不代表通用图片质量基准，qwen3.8-flash文本模型仍仅配置、未进行真实文字调用。
+
+## 2026-10-15：平台内单次确认生成
+
+新增页面内费用确认、单次批准与生成闭环，以及直接使用简介、深链生图页、自动预览最新结果。批准时可提交 expected_model_binding，在事务内核对确认时的模型/参数；配置已变则409且不创建批准。
+
+完整pytest **82 passed**，前端生产构建通过。独立GUI执行 `tests/e2e/photo-platform.cjs`，8阶段全部通过：页面创建与简介填入、取消不创建批准或任务、双击只提交一次、预览及字节一致下载、深链重开与刷新历史、未知费用显式接受、确认后配置变化拦截、失败不重试、20次导航和200% CSS缩放/键盘退出。三个阶段截图均实际打开检查。零pageerrors。
+
+此GUI使用真实前端、FastAPI和临时SQLite；仅外部图片服务由HTTPX MockTransport替代，生成的是明确测试用PNG，不能视为真实AI质量测试。启动命令：
+
+```sh
+.venv/bin/python tests/e2e/photo_platform_server.py --data-dir /private/tmp/aigc-platform-gui --port 8120
+# 另开终端，在frontend目录运行
+VITE_API_TARGET=http://127.0.0.1:8120 pnpm dev --port 8173
+# 项目根目录，使用已安装的Playwright/Chromium
+node tests/e2e/photo-platform.cjs
+```
+
+本地证据目录：tests/artifacts/platform-1792029953553；下载文件与API资产字节一致。模拟服务强制覆盖假Key/独立DATA_DIR并拒绝repo内数据库位置，不读取真实Key，全部出站图片请求由内存transport处理。
+
+另对实际配置的本地平台仅检查打开生图页、阿里云费用弹窗及取消：浏览器零POST，前后批准记录与任务数量未变，截图已实际检查。本轮没有新增付费调用；真实阿里云出图能力沿用前一轮已批准验收。
