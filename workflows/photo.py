@@ -4,6 +4,7 @@ from backend.store import now,uid,DomainError
 from backend.photo_schemas import PhotoPrompt
 from agents.photo_fixture import make_prompt,placeholder
 from tools.model import complete
+from tools.prompt_quality import DIRECTIONS,photo_quality
 from tools.photo_model import generate_image,recover_image_receipt
 
 PROMPT_FIELDS=('subject','environment','composition','lighting','camera','style','color','mood','details')
@@ -33,9 +34,9 @@ async def execute_photo(store,run_id,config):
             run.update(status='running',updated_at=now());run['steps'].append({'step':'load_photo_snapshot','status':'succeeded','at':now()});store.put('run',run)
         request=run['request'];brief=request['brief_snapshot'];proposal_id=None;asset=None
         if run['kind']=='photo_prompt':
-            if config['mode']=='fixture':prompt=compile_photo_prompt(make_prompt(brief,request.get('instruction','')),brief,'fixture')
+            if config['mode']=='fixture':prompt=compile_photo_prompt(make_prompt(brief,request.get('instruction',''),request.get('creative_direction','faithful')),brief,'fixture')
             else:
-                payload={'task':'photo_prompt','brief':brief,'current_prompt':request.get('prompt_snapshot'),'instruction':request.get('instruction',''),'output_schema':PhotoPrompt.model_json_schema(),'rules':'只生成照片Prompt JSON，不生成图片，confirmed必须false'}
+                payload={'task':'photo_prompt','creative_direction':DIRECTIONS[request.get('creative_direction','faithful')],'brief':brief,'current_prompt':request.get('prompt_snapshot'),'instruction':request.get('instruction',''),'writing_diagnosis':photo_quality(brief,request.get('prompt_snapshot')),'output_schema':PhotoPrompt.model_json_schema(),'rules':'只生成照片Prompt JSON，不生成图片。保留用户明确事实，构图和光线选择须一致，补充内容逐项记入assumptions，禁止内容只存元数据。confirmed必须false。' }
                 for repair in range(2):
                     try:
                         output=await complete(store,run,config,request.get('approval_id'),payload,approval_kind='photo_approval')
@@ -43,12 +44,12 @@ async def execute_photo(store,run_id,config):
                     except (DomainError,ValueError,TypeError,KeyError) as exc:
                         if repair or isinstance(exc,DomainError) and exc.code!='MODEL_OUTPUT_INVALID':raise
                         payload['repair_instruction']='前一结果未满足Schema，严格修复后只输出JSON。'
-            prompt['confirmed']=False;checks=check_photo_prompt(prompt,brief)
+            prompt['creative_direction']=request.get('creative_direction','faithful');prompt['confirmed']=False;checks=check_photo_prompt(prompt,brief)
             with store.tx():
                 current=store.get('run',run_id)
                 if current['status']=='cancelled':return
                 store.get('photo_project',run['photo_project_id'])
-                proposal_id=uid();store.put('photo_proposal',{'id':proposal_id,'photo_project_id':run['photo_project_id'],'base_revision':run['base_revision'],'status':'pending','prompt':prompt,'diff':{'prompt_changed':prompt!=request.get('prompt_snapshot')},'issues':checks['issues'],'created_at':now(),'run_id':run_id})
+                proposal_id=uid();store.put('photo_proposal',{'id':proposal_id,'photo_project_id':run['photo_project_id'],'base_revision':run['base_revision'],'status':'pending','prompt':prompt,'creative_direction':request.get('creative_direction','faithful'),'quality':photo_quality(brief,prompt),'diff':{'prompt_changed':prompt!=request.get('prompt_snapshot')},'issues':checks['issues'],'created_at':now(),'run_id':run_id})
                 current.update(status='succeeded',proposal_id=proposal_id,result=checks,elapsed_seconds=round(time.monotonic()-began,3),updated_at=now());current['steps'].append({'step':'save_prompt_candidate','status':'succeeded','at':now()});store.put('run',current)
         else:
             if run['kind']=='photo_image_recovery':raw,mime,ext,width,height=await recover_image_receipt(store,run)
