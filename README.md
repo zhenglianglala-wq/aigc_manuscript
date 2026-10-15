@@ -11,7 +11,9 @@
 - **Prompt 编写**：简介扩写为主体、场景、构图、光线、镜头、风格等可编辑字段，候选应用后可确认、复制或导出，不自动生成图片。
 - **直接生成照片**：可使用已确认的项目 Prompt，也可直接粘贴已有 Prompt，确认后生成，无需先调用 Prompt 编写。图片保存实际文字、来源、模型、尺寸和版本，支持预览、下载与历史。
 
-两类服务及批准分别管理。默认文字为示例，默认图片为醒目标注的离线占位图（非 AI 照片）。真实生图须配置独立的 `IMAGE_API_KEY`、`IMAGE_BASE_URL`、`IMAGE_MODEL`、`IMAGE_MODE=openai-compatible`、`PAID_IMAGE_CALLS_ENABLED=true`，再在照片设置中批准图片用途。文本 Key 和视频批准不能代替图片授权。
+两类服务及批准分别管理。默认文字为示例，默认图片为醒目标注的离线占位图（非 AI 照片）。真实生图须配置独立的 `IMAGE_API_KEY`、`IMAGE_BASE_URL`、`IMAGE_MODEL`、`IMAGE_MODE=openai-compatible`、`PAID_IMAGE_CALLS_ENABLED=true`。在生成页点击生成，核对本次模型、尺寸、Prompt 与估算费用后，明确批准单张调用；不必离开生成页创建批准。文本 Key 和视频批准不能代替图片授权。
+
+页面内完成：选择项目 → 直接生成照片 → 选择已确认项目 Prompt 或输入自己的 Prompt → 生成并确认本次费用 → 页面显示进度和结果 → 下载或查看照片历史。取消费用确认不会发起调用。结果下载失败且存在回执时，可选择“重新下载结果（不重新生成）”。深链参数 `photo_project=项目ID&photo_view=image` 可直接打开对应生图页面。
 
 图片接口支持 `/images/generations` Base64 输出 PNG/JPEG/WebP，`response_format=auto` 省略旧参数。阿里云百炼选择 `aliyun_url`，由后端下载经过验证的官方 OSS 结果；其他 URL-only 供应商仍不支持。每次一张，没有自动重试；取消不保证供应商免计费。设置更改需要重新批准。
 
