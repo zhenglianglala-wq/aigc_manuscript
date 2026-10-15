@@ -69,6 +69,7 @@ class PhotoImageSettings(Strict):
     estimated_price_per_image: float | None = Field(default=None,ge=0)
     price_date: str | None = Field(default=None,max_length=40)
 class PhotoApprovalNew(Strict):
+    expected_model_binding: dict[str,str|float|None] | None = Field(default=None,max_length=5)
     photo_project_id: str
     purpose: Literal['prompt','image']
     max_calls: int = Field(ge=1,le=100)
