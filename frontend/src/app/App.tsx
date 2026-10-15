@@ -17,8 +17,8 @@ const views:{id:View;label:string}[]=[{id:'story',label:'故事'},{id:'timeline'
 const runKey='studio:run-ids';
 const getRunIds=():Record<string,string[]>=>{try{return JSON.parse(localStorage.getItem(runKey)||'{}')}catch{return {}}};
 export default function App(){
- const [product,setProduct]=useState<'video'|'photo'>(()=>localStorage.getItem('studio:product')==='photo'?'photo':'video');
- const change=(value:'video'|'photo')=>{setProduct(value);localStorage.setItem('studio:product',value)};
+ const [product,setProduct]=useState<'video'|'photo'>(()=>{const params=new URLSearchParams(location.search);return params.has('photo_project')||params.get('photo_view')==='image'||localStorage.getItem('studio:product')==='photo'?'photo':'video'});
+ const change=(value:'video'|'photo')=>{setProduct(value);localStorage.setItem('studio:product',value);if(value==='video'){const url=new URL(location.href);url.searchParams.delete('photo_project');url.searchParams.delete('photo_view');history.replaceState(null,'',url.pathname+url.search)}};
  return <div className="product-container"><nav className="product-switch" aria-label="创作类型"><button aria-pressed={product==='video'} onClick={()=>change('video')}>视频剧本</button><button aria-pressed={product==='photo'} onClick={()=>change('photo')}>照片创作</button></nav>{product==='video'?<VideoWorkspace/>:<PhotoWorkspace/>}</div>;
 }
 function VideoWorkspace(){
