@@ -44,3 +44,11 @@ Cancelled original image tasks and deleted projects reject recovery. Recovered a
 
 ## Inline confirmation config snapshot
 POST photo-approvals accepts optional `expected_model_binding`, exactly the model binding displayed in the user's confirmation. Image: `{base_url,model,size,response_format,estimated_price_per_image}`; prompt: `{base_url,model,input_price_per_million,output_price_per_million,max_output_tokens}`. The approval transaction compares the current configuration; differences return409 APPROVAL_CONFIG_CHANGED without creating approval. Existing clients may omit this field; inline confirmation clients must send their displayed snapshot.
+
+## Writing quality and result feedback (2026-10-15)
+
+Photo prompt run accepts creative_direction: faithful (default), cinematic, commercial. This remains a separate text task requiring its own approval in real mode. Schema adds optional/defaulted creative_direction and assumptions (max16, each max600 characters); compilation never appends assumption notes to the positive Prompt. Candidates retain direction and diagnostic report. Old records remain readable.
+
+POST /api/photo-projects/{id}/quality: {base_revision,text?:string,baseline?:string}, text/baseline 1–16000 characters. Checks the original saved prompt/brief if text omitted; checks supplied raw text otherwise. Returns version, current/baseline evidence and advice, no aesthetic score or winner. Version mismatch409. Local read-only computation, no model call or approval consumed.
+
+POST /api/photo-assets/{id}/feedback: adherence/composition/lighting strict integers1–5, notes max2000 characters. Freezes asset ID, actual Prompt/model/settings/source revision and asset_mode, marked user-reported; not a model-quality assertion. GET /api/photo-projects/{id}/feedback lists project records. Included in SQLite backups; project deletion removes feedback. This does not generate images or automatically update prompts.
