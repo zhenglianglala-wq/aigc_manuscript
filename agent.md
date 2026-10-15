@@ -32,3 +32,5 @@
 ## 依赖策略
 
 使用项目虚拟环境、requirements.lock、frontend/pnpm-lock.yaml。Python 3.11+，Node 22.13+，pnpm 11.25.0。新增依赖说明用途并核验许可证，选择兼容稳定版本。没有明确需求时不引入向量库、消息队列或重型 Agent 框架。不要读取其他项目密钥；.env.example 只允许空值或假值，.env 不入 Git。付费调用需用户批准，配置 Key 本身不构成授权。
+
+Prompt质量：tools/prompt_quality.py只做有原文依据的启发式检查，不输出美学总分或模型胜率。优化方向及assumptions保存创作来源；诊断不改稿、不调用模型。photo_feedback按资产冻结来源，项目删除时同步清理。动作优先视频适配1.1须保留全部后续动作，不能回退为只取首秒。对照实验方案和未实现边界见docs/prompt-quality.md。
