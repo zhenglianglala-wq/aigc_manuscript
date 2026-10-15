@@ -197,8 +197,10 @@ def register_photo_routes(app,store,tasks,text_settings):
     def approve(body:PhotoApprovalNew):
         with store.tx():
             photo(body.photo_project_id);cfg=image_settings() if body.purpose=='image' else text_settings();known=cfg['estimated_price_per_image'] is not None if body.purpose=='image' else cfg['input_price_per_million'] is not None and cfg['output_price_per_million'] is not None
+            binding=model_binding(cfg,body.purpose)
+            if body.expected_model_binding is not None and body.expected_model_binding!=binding:raise DomainError('APPROVAL_CONFIG_CHANGED','确认期间服务、模型或参数已改变，请刷新后重新确认',409)
             if not known and not body.accept_unknown_cost:raise DomainError('UNKNOWN_COST','价格未知，需要明确接受未知费用',422)
-            a={'id':uid(),**body.model_dump(),'status':'active','calls_used':0,'spent':0,'reserved':0,'model_binding':model_binding(cfg,body.purpose),'created_at':now(),'expires_at':(datetime.now(timezone.utc)+timedelta(minutes=body.expires_in_minutes)).isoformat()};store.put('photo_approval',a);return a
+            a={'id':uid(),**body.model_dump(exclude={'expected_model_binding'}),'status':'active','calls_used':0,'spent':0,'reserved':0,'model_binding':binding,'created_at':now(),'expires_at':(datetime.now(timezone.utc)+timedelta(minutes=body.expires_in_minutes)).isoformat()};store.put('photo_approval',a);return a
     @app.delete('/api/photo-approvals/{approval_id}')
     def revoke(approval_id:str):
         with store.tx():
