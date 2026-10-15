@@ -22,6 +22,9 @@ os.environ.update(DATA_DIR=str(target), IMAGE_API_KEY='simulated-gui-key',
                   LLM_API_KEY='', LLM_MODE='fixture', PAID_CALLS_ENABLED='false')
 sys.path.insert(0, str(root))
 import httpx
+import dotenv
+# The isolated server must not load the user's .env at import time.
+dotenv.load_dotenv = lambda *args, **kwargs: False
 from PIL import Image, ImageDraw
 import uvicorn
 
