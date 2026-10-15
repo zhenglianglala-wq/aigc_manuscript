@@ -1,0 +1,11 @@
+import {useEffect,useRef,useState} from 'react';
+import {api} from '../../api/client';
+import {Field} from '../../components/UI';
+import type {PhotoAsset} from './types';
+type Feedback={id:string;asset_id:string;adherence:number;composition:number;lighting:number;notes:string;evaluation_type:string};
+export default function PhotoFeedback({asset}:{asset:PhotoAsset}){
+ const edited=useRef(false);
+ const [scores,setScores]=useState({adherence:3,composition:3,lighting:3}),[notes,setNotes]=useState(''),[saved,setSaved]=useState<Feedback|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ useEffect(()=>{let cancelled=false;void api<Feedback[]>(`/photo-projects/${asset.photo_project_id}/feedback`).then(r=>{if(!cancelled){const last=r.filter(x=>x.asset_id===asset.id).at(-1)??null;setSaved(last);if(last&&!edited.current){setScores({adherence:last.adherence,composition:last.composition,lighting:last.lighting});setNotes(last.notes)}}}).catch(()=>{if(!cancelled)setError('读取历史评价失败，请刷新后重试。')});return()=>{cancelled=true}},[asset.id]);
+ return <details className="photo-feedback"><summary>评价这张照片</summary><p className="photo-small-info">人工反馈关联这张图片的实际 Prompt、模型与参数，供后续对照评估；不会再次生成。{asset.mode==='fixture'?' 这是离线占位图，评价不能作为真实模型效果证据。':''}</p>{saved&&<p role="status">最近评价：遵循 {saved.adherence}/5 · 构图 {saved.composition}/5 · 光线 {saved.lighting}/5。{saved.notes}</p>}<form onSubmit={async e=>{e.preventDefault();if(busy)return;setBusy(true);setError('');try{setSaved(await api<Feedback>(`/photo-assets/${asset.id}/feedback`,'POST',{...scores,notes}))}catch(e){setError(e instanceof Error?e.message:'保存失败')}finally{setBusy(false)}}}><div className="photo-quality-grid">{(['adherence','composition','lighting'] as const).map(key=><Field key={key} label={{adherence:'需求遵循评分',composition:'构图评分',lighting:'光线评分'}[key]}><select value={scores[key]} onChange={e=>{edited.current=true;setScores({...scores,[key]:Number(e.target.value)})}}>{[1,2,3,4,5].map(v=><option key={v} value={v}>{v} / 5</option>)}</select></Field>)}</div><Field label="图片改进反馈"><textarea maxLength={2000} rows={2} value={notes} onChange={e=>{edited.current=true;setNotes(e.target.value)}} placeholder="具体哪里不符合原始意图，下次只改哪一个变量？"/></Field><button disabled={busy}>{busy?'正在保存…':'保存图片评价'}</button>{error&&<p className="notice" role="alert">{error}</p>}</form></details>;
+}
